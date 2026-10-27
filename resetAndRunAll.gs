@@ -1,3 +1,33 @@
+// === НАСТРОЙКИ ONESIGNAL ===
+var ONESIGNAL_APP_ID = "2c49eac7-e96e-424a-b231-9891d9d243ce";
+var ONESIGNAL_API_KEY = PropertiesService.getScriptProperties().getProperty('ONESIGNAL_API_KEY');
+var NEW_REACTION_TEMPLATE_ID = "0d7c6155-d3c7-443d-8849-c72695f08d6d";
+
+function sendNewReactionNotification() {
+  var url = "https://onesignal.com/api/v1/notifications";
+  var headers = {
+    "Authorization": "Key " + ONESIGNAL_REST_API_KEY,
+    "Content-Type": "application/json; charset=utf-8"
+  };
+  var payload = {
+    "app_id": ONESIGNAL_APP_ID,
+    "template_id": NEW_REACTION_TEMPLATE_ID,
+    "included_segments": ["Subscribed Users"]
+  };
+  var options = {
+    "method": "post",
+    "headers": headers,
+    "payload": JSON.stringify(payload),
+    "muteHttpExceptions": true
+  };
+  try {
+    var response = UrlFetchApp.fetch(url, options);
+    Logger.log("Ответ OneSignal: " + response.getContentText());
+  } catch (error) {
+    Logger.log("Ошибка при отправке пуша: " + error.toString());
+  }
+}
+
 // === УНИВЕРСАЛЬНЫЙ СПРАВОЧНИК ТРЕКОВ ===
 var SONGS_DB = [
   { name: "Never Regret", pattern: /never[\s\-_]+regret/i },
@@ -169,12 +199,24 @@ function runBatchProcessing() {
       var nextPageToken = '';
 
       try {
-        do {
-          var playlistResponse = YouTube.PlaylistItems.list('snippet', {
-            playlistId: uploadsPlaylistId,
-            maxResults: 50,
-            pageToken: nextPageToken
-          });
+      do {
+        var playlistResponse = null;
+        var attempts = 0;
+        var maxAttempts = 2; // Сделаем 2 попытки
+
+        while (attempts < maxAttempts && !playlistResponse) {
+          try {
+            attempts++;
+            playlistResponse = YouTube.PlaylistItems.list('snippet', {
+              playlistId: uploadsPlaylistId,
+              maxResults: 50,
+              pageToken: nextPageToken
+            });
+          } catch (apiErr) {
+            if (attempts >= maxAttempts) throw apiErr; // Если это была последняя попытка — пробрасываем ошибку дальше
+            Utilities.sleep(500); // Пауза полсекунды перед повторной попыткой
+          }
+        }
 
           if (playlistResponse && playlistResponse.items) {
             for (var k = 0; k < playlistResponse.items.length; k++) {
@@ -332,11 +374,22 @@ rawItems.forEach(function(item) {
       var reactionsListString = reactionsListArray.join(", ");
       var formattedDate = lastReactionDate ? Utilities.formatDate(lastReactionDate, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
 
-      // Записываем H (Total_Views), I (Reactions), J (Last_Date), K (List)
-      sheet.getRange(currentRow, 8).setValue(totalViews);
-      sheet.getRange(currentRow, 9).setValue(validReactionsCount);
-      sheet.getRange(currentRow, 10).setValue(formattedDate);
-      sheet.getRange(currentRow, 11).setValue(reactionsListString);
+  // 🛡️ ЗАЩИТА: Новое количество реакций не может быть меньше предыдущего
+  var prevReactionsCell = sheet.getRange(currentRow, 9);
+  var previousReactionsCount = parseInt(prevReactionsCell.getValue()) || 0;
+
+  if (validReactionsCount < previousReactionsCount) {
+  Logger.log("⚠️ Защита сработала: API вернул меньше реакций (" + validReactionsCount + ") для строки " + currentRow + ", чем было в таблице (" + previousReactionsCount + "). Пропускаем обновление, чтобы не затереть данные.");
+  } else {
+  // Записываем данные штатно
+  sheet.getRange(currentRow, 8).setValue(totalViews);
+  sheet.getRange(currentRow, 9).setValue(validReactionsCount);
+  sheet.getRange(currentRow, 10).setValue(formattedDate);
+  sheet.getRange(currentRow, 11).setValue(reactionsListString);
+  
+  // Лог переносим сюда, чтобы он писал "Записано" только при реальном обновлении!
+  Logger.log("✅ Строка " + currentRow + " (" + channelUrl + "): " + validReactionsCount + " реакций | Записано.");
+}
       
 // Ищем первое полноценное видео, которое уже вышло (дата <= сейчас)
     var lastSongName = "";
@@ -370,11 +423,18 @@ rawItems.forEach(function(item) {
     var cellRange = sheet.getRange(currentRow, 24); // Столбец X (24-й)
     var currentManualValue = cellRange.getValue();
 
-    if (lastSongName) {
-      cellRange.setValue(lastSongName); // Записываем свежий авто-трек
-    } else if (!currentManualValue) {
-      cellRange.setValue(""); // Если пусто и авто не нашло — оставляем пусто
-    }
+   if (lastSongName) {
+  // Отправляем пуш только если значение в ячейке меняется на новое
+  if (currentManualValue !== lastSongName) {
+    cellRange.setValue(lastSongName); // Записываем свежий авто-трек
+    sendNewReactionNotification(); // Вызываем отправку мультиязычного пуша
+    Logger.log("🔔 Отправлено пуш-уведомление в OneSignal о новом треке: " + lastSongName);
+  } else {
+    cellRange.setValue(lastSongName); // Если значение то же, просто обновляем без пуша
+  }
+} else if (!currentManualValue) {
+  cellRange.setValue(""); // Если пусто и авто не нашло - оставляем пусто
+}
     // Если lastSongName пустой, а в currentManualValue что-то есть — скрипт просто ПРОХОДИТ МИМО и не трогает вашу ручную запись!
     
       props.setProperty('LAST_PROCESSED_ROW', (currentRow + 1).toString());
