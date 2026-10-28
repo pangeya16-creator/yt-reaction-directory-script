@@ -1,33 +1,3 @@
-// === НАСТРОЙКИ ONESIGNAL ===
-var ONESIGNAL_APP_ID = "2c49eac7-e96e-424a-b231-9891d9d243ce";
-var ONESIGNAL_API_KEY = PropertiesService.getScriptProperties().getProperty('ONESIGNAL_API_KEY');
-var NEW_REACTION_TEMPLATE_ID = "0d7c6155-d3c7-443d-8849-c72695f08d6d";
-
-function sendNewReactionNotification() {
-  var url = "https://onesignal.com/api/v1/notifications";
-  var headers = {
-    "Authorization": "Key " + ONESIGNAL_REST_API_KEY,
-    "Content-Type": "application/json; charset=utf-8"
-  };
-  var payload = {
-    "app_id": ONESIGNAL_APP_ID,
-    "template_id": NEW_REACTION_TEMPLATE_ID,
-    "included_segments": ["Subscribed Users"]
-  };
-  var options = {
-    "method": "post",
-    "headers": headers,
-    "payload": JSON.stringify(payload),
-    "muteHttpExceptions": true
-  };
-  try {
-    var response = UrlFetchApp.fetch(url, options);
-    Logger.log("Ответ OneSignal: " + response.getContentText());
-  } catch (error) {
-    Logger.log("Ошибка при отправке пуша: " + error.toString());
-  }
-}
-
 // === УНИВЕРСАЛЬНЫЙ СПРАВОЧНИК ТРЕКОВ ===
 var SONGS_DB = [
   { name: "Never Regret", pattern: /never[\s\-_]+regret/i },
@@ -423,15 +393,8 @@ rawItems.forEach(function(item) {
     var cellRange = sheet.getRange(currentRow, 24); // Столбец X (24-й)
     var currentManualValue = cellRange.getValue();
 
-   if (lastSongName) {
-  // Отправляем пуш только если значение в ячейке меняется на новое
-  if (currentManualValue !== lastSongName) {
-    cellRange.setValue(lastSongName); // Записываем свежий авто-трек
-    sendNewReactionNotification(); // Вызываем отправку мультиязычного пуша
-    Logger.log("🔔 Отправлено пуш-уведомление в OneSignal о новом треке: " + lastSongName);
-  } else {
-    cellRange.setValue(lastSongName); // Если значение то же, просто обновляем без пуша
-  }
+if (lastSongName) {
+  cellRange.setValue(lastSongName); // Записываем название трека в таблицу
 } else if (!currentManualValue) {
   cellRange.setValue(""); // Если пусто и авто не нашло - оставляем пусто
 }
