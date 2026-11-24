@@ -10,7 +10,7 @@ var SONGS_DB = [
   { name: "K.O.W", pattern: /k[\s\-_]*\.?[\s\-_]*o[\s\-_]*\.?[\s\-_]*w/i },
   { name: "Silver Pull", pattern: /silver[\s\-_]+pull/i },
   { name: "Glowing Show", pattern: /glowing[\s\-_]+show/i },
-  { name: "Ha Lo'", pattern: /ha[\s\-_]+lo[’']?/i },
+  { name: "Ha Lo'", pattern: /ha[\s\-_]+halo[’']?/i },
   { name: "Talking much", pattern: /talking[\s\-_]+much/i },
   { name: "Live Innovation", pattern: /live[\s\-_]+innovation/i },
   { name: "Dance on My Bones", pattern: /dance[\s\-_]+on[\s\-_]+my[\s\-_]+bones/i },
@@ -39,20 +39,21 @@ var SONGS_DB = [
   { name: "My honey", pattern: /my[\s\-_]+honey/i },
   { name: "Live without a system", pattern: /live[\s\-_]+without[\s\-_]+a[\s\-_]+system/i },
   { name: "Struggling By Myself", pattern: /struggling[\s\-_]+by[\s\-_]+myself/i },
-  { name: "OST Carpetwood", pattern: /carpetwood/i }
+  { name: "OST Carpetwood", pattern: /carpetwood/i },
+  { name: "WLKin", pattern: /wlkin/i }
 ];
 
 // Вспомогательная функция определения трека по названию видео
 function detectSongName(videoTitle) {
   if (!videoTitle) return "";
-  Logger.log("🔍 Проверяем видео: " + videoTitle); // <-- Добавьте эту строчку
+  Logger.log("🔍 Проверяем видео: " + videoTitle);
   for (var i = 0; i < SONGS_DB.length; i++) {
     if (SONGS_DB[i].pattern.test(videoTitle)) {
-      Logger.log("✅ Найден трек: " + SONGS_DB[i].name); // <-- И эту
+      Logger.log("✅ Найден трек: " + SONGS_DB[i].name);
       return SONGS_DB[i].name;
     }
   }
-  Logger.log("❌ ТРЕК НЕ НАЙДЕН ДЛЯ: " + videoTitle); // <-- И эту
+  Logger.log("❌ ТРЕК НЕ НАЙДЕН ДЛЯ: " + videoTitle);
   return "";
 }
 
@@ -78,9 +79,8 @@ function runBatchProcessing() {
     var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = spreadsheet.getSheetByName("Channel") || spreadsheet.getActiveSheet();
 
-    var carpetPattern = /carpetman|carpet\s*man/i;
-    var blackSoilPattern = /black\s*soil|blacksoil/i;
     var carpetPattern = /carpet[\s\_]*man|anyway,?\s*i\s*love\s*it/i;
+    var blackSoilPattern = /black\s*soil|blacksoil/i;
 
     // Исключения для названий видео
     var EXCLUDE_REGEX = /shorts|skating|skate|choreography|cover|tutorial|teaser|trailer|remix|sub/i;
@@ -91,7 +91,7 @@ function runBatchProcessing() {
 
     var props = PropertiesService.getScriptProperties();
     var startRow = parseInt(props.getProperty('LAST_PROCESSED_ROW') || '2', 10);
-    // var startRow = 5; // Принудительно начинаем с 5-й строки
+    //var startRow = 7; // <-- ВРЕМЕННО: подставьте сюда номер нужной строки из таблицы
     var lastRow = sheet.getLastRow();
 
     if (startRow > lastRow) {
@@ -103,12 +103,12 @@ function runBatchProcessing() {
     var data = sheet.getRange(startRow, 1, lastRow - startRow + 1, 14).getValues();
 
     for (var i = 0; i < data.length; i++) {
-    // for (var i = 0; i < 1; i++) { // Обработает ровно 1 строку (5-ю) и остановится
+    //for (var i = 0; i < 1; i++) { // Обработает ровно 1 строку и остановится
       var currentTime = new Date().getTime();
       if (currentTime - startTime > maxExecutionTimeMs) {
         var nextRow = startRow + i;
         props.setProperty('LAST_PROCESSED_ROW', nextRow.toString());
-        Logger.log("Таймаут 3.5 минут. Остановка на строке " + nextRow);
+        Logger.log("Таймаут 5.5 минут. Остановка на строке " + nextRow);
         return;
       }
 
@@ -151,7 +151,6 @@ function runBatchProcessing() {
         sheet.getRange(currentRow, 3).setValue(channelDetails.subscriberCount); // Столбец C (Subscribers)
         sheet.getRange(currentRow, 5).setValue(channelDetails.avatarUrl);       // Столбец E (Avatar s800)
         
-        // Перезаписываем страну только если ячейка F пустая ИЛИ API вернул конкретную страну
         var existingCountry = String(row[5] || '').trim(); // Текущее значение в колонке F
         if (!existingCountry || channelDetails.countryCode) {
           sheet.getRange(currentRow, 6).setValue(channelDetails.countryCode || existingCountry);
@@ -159,7 +158,6 @@ function runBatchProcessing() {
       }
 
       // 2. ВАШ ИДЕАЛЬНЫЙ РАБОЧИЙ DEEPLINK (Столбец G)
-
       var deepLink = "https://www.youtube.com/@" + handle.replace("@", "") + "/search?query=%22Carpetman%22%20OR%20%22Black%20Soil%22";
       sheet.getRange(currentRow, 7).setValue(deepLink);
 
@@ -169,24 +167,24 @@ function runBatchProcessing() {
       var nextPageToken = '';
 
       try {
-      do {
-        var playlistResponse = null;
-        var attempts = 0;
-        var maxAttempts = 2; // Сделаем 2 попытки
+        do {
+          var playlistResponse = null;
+          var attempts = 0;
+          var maxAttempts = 2;
 
-        while (attempts < maxAttempts && !playlistResponse) {
-          try {
-            attempts++;
-            playlistResponse = YouTube.PlaylistItems.list('snippet', {
-              playlistId: uploadsPlaylistId,
-              maxResults: 50,
-              pageToken: nextPageToken
-            });
-          } catch (apiErr) {
-            if (attempts >= maxAttempts) throw apiErr; // Если это была последняя попытка — пробрасываем ошибку дальше
-            Utilities.sleep(500); // Пауза полсекунды перед повторной попыткой
+          while (attempts < maxAttempts && !playlistResponse) {
+            try {
+              attempts++;
+              playlistResponse = YouTube.PlaylistItems.list('snippet', {
+                playlistId: uploadsPlaylistId,
+                maxResults: 50,
+                pageToken: nextPageToken
+              });
+            } catch (apiErr) {
+              if (attempts >= maxAttempts) throw apiErr;
+              Utilities.sleep(500);
+            }
           }
-        }
 
           if (playlistResponse && playlistResponse.items) {
             for (var k = 0; k < playlistResponse.items.length; k++) {
@@ -211,78 +209,67 @@ function runBatchProcessing() {
         continue;
       }
 
-// === НАСТРОЙКИ СПЕЦИФИЧЕСКИХ РОЛИКОВ ПО ID ===
+      // === НАСТРОЙКИ СПЕЦИФИЧЕСКИХ РОЛИКОВ ПО ID ===
+      var FORCED_INCLUDE_IDS = [
+        "0HLXD9fSiKw", "54YJDs834EM", "C1xKSRLNE_0", "fu3t8xUj7oQ", "TOujKVFiJAA", "g9DpCKIaPWU", "R30uwh_c8lY", "2iT3-r5c2ew", "TQc34LLqo5k", "Kt_bMhJgH00", "neKXYZuAf_c", "ZAp1nD0kXtA", "1Y_sD2cZHhM"
+      ];
 
-// 1. Принудительно ВКЛЮЧИТЬ
-var FORCED_INCLUDE_IDS = [
-  "0HLXD9fSiKw", "54YJDs834EM", "C1xKSRLNE_0", "fu3t8xUj7oQ", "TOujKVFiJAA", "g9DpCKIaPWU", "R30uwh_c8lY", "2iT3-r5c2ew", "TQc34LLqo5k", "Kt_bMhJgH00", "neKXYZuAf_c", "ZAp1nD0kXtA"
-];
+      var FORCED_EXCLUDE_IDS = [
+        "Td_tjixB6z0", "pQnBNy_N8T0", "z9oOM2yZT_4", "INlSK2nUtt8", "3xmagKuwYSM", "0xVVOjha3f0", "td9k1-1-jU0", "oWypwzCLpK8"
+      ];
 
-// 2. Принудительно ИСКЛЮЧИТЬ (например, ролик про Kalush, где есть Carpetman)
-var FORCED_EXCLUDE_IDS = [
-  "Td_tjixB6z0","pQnBNy_N8T0", "z9oOM2yZT_4", "INlSK2nUtt8", "3xmagKuwYSM", "0xVVOjha3f0", "td9k1-1-jU0", "oWypwzCLpK8" // Вставьте сюда ID видео, которое нужно выкинуть
-];
+      var FORCED_DUO_VIDEO_IDS = [
+        "7-arxkx2iBk", "ymfoB4FB-nk", "joYferlJD2U"
+      ];
 
-// 3. Принудительно ДОПИСАТЬ "x Black Soil" (если автор забыл второго артиста)
-var FORCED_DUO_VIDEO_IDS = [
-  "7-arxkx2iBk", "ymfoB4FB-nk", "joYferlJD2U"
-];
-// Принудительно задать артиста ТОЛЬКО как Black Soil
-var FORCED_ONLY_BLACK_SOIL_IDS = [
-  "T3oMdPCSrXo" // Вставьте сюда ID видео на Black Soil
-];
+      var FORCED_ONLY_BLACK_SOIL_IDS = [
+        "T3oMdPCSrXo"
+      ];
 
-// === ЛОГИКА ОБРАБОТКИ ===
-var candidateVideos = [];
+      var candidateVideos = [];
 
-rawItems.forEach(function(item) {
-  var videoId = item.snippet.resourceId.videoId;
+      rawItems.forEach(function(item) {
+        var videoId = item.snippet.resourceId.videoId;
 
-  // ШАГ A: Если ID находится в списке ИСКЛЮЧЕНИЙ — сразу выкидываем ролик!
-  if (FORCED_EXCLUDE_IDS.indexOf(videoId) !== -1) {
-    return;
-  }
+        if (FORCED_EXCLUDE_IDS.indexOf(videoId) !== -1) {
+          return;
+        }
 
-  var rawTitle = item.snippet.title;
-  var title = rawTitle
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, "&");
+        var rawTitle = item.snippet.title;
+        var title = rawTitle
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/&amp;/g, "&");
 
-  // ШАГ B: Проверка на принудительное включение
-  var isForcedInclude = FORCED_INCLUDE_IDS.indexOf(videoId) !== -1;
+        var isForcedInclude = FORCED_INCLUDE_IDS.indexOf(videoId) !== -1;
 
-  // Если ролик не в списке принудительных, проверяем его по обычным стоп-словам
-  if (!isForcedInclude) {
-    if (EXCLUDE_REGEX.test(title)) return;
-  }
+        if (!isForcedInclude) {
+          if (EXCLUDE_REGEX.test(title)) return;
+        }
 
-  var hasCarpetman = carpetPattern.test(title);
-  var hasBlackSoil = blackSoilPattern.test(title);
+        var hasCarpetman = carpetPattern.test(title);
+        var hasBlackSoil = blackSoilPattern.test(title);
 
-  // ШАГ C: Если ролик в списке для исправления дуэта — форсируем обоих артистов
-  if (FORCED_DUO_VIDEO_IDS.indexOf(videoId) !== -1) {
-    hasCarpetman = true;
-    hasBlackSoil = true;
-  }
-  
-  // ШАГ D (новый): Если ролик в списке "Только Black Soil" — убираем Carpetman, оставляем Black Soil
-  if (FORCED_ONLY_BLACK_SOIL_IDS.indexOf(videoId) !== -1) {
-    hasCarpetman = false;
-    hasBlackSoil = true;
-  }
-  
-  // ШАГ E: Итоговое добавление в кандидаты
-  if (hasCarpetman || hasBlackSoil || isForcedInclude) {
-    candidateVideos.push({
-      id: videoId,
-      title: title,
-      pubDate: new Date(item.snippet.publishedAt),
-      hasCarpetman: hasCarpetman,
-      hasBlackSoil: hasBlackSoil
-    });
-  }
-});
+        if (FORCED_DUO_VIDEO_IDS.indexOf(videoId) !== -1) {
+          hasCarpetman = true;
+          hasBlackSoil = true;
+        }
+        
+        if (FORCED_ONLY_BLACK_SOIL_IDS.indexOf(videoId) !== -1) {
+          hasCarpetman = false;
+          hasBlackSoil = true;
+        }
+        
+        if (hasCarpetman || hasBlackSoil || isForcedInclude) {
+          candidateVideos.push({
+            id: videoId,
+            title: title,
+            pubDate: new Date(item.snippet.publishedAt),
+            hasCarpetman: hasCarpetman,
+            hasBlackSoil: hasBlackSoil
+          });
+        }
+      });
 
       if (candidateVideos.length === 0) {
         sheet.getRange(currentRow, 8, 1, 4).setValues([[0, 0, "", ""]]);
@@ -344,64 +331,65 @@ rawItems.forEach(function(item) {
       var reactionsListString = reactionsListArray.join(", ");
       var formattedDate = lastReactionDate ? Utilities.formatDate(lastReactionDate, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
 
-  // 🛡️ ЗАЩИТА: Новое количество реакций не может быть меньше предыдущего
-  var prevReactionsCell = sheet.getRange(currentRow, 9);
-  var previousReactionsCount = parseInt(prevReactionsCell.getValue()) || 0;
+      // 🛡️ ЗАЩИТА: Новое количество реакций не может быть меньше предыдущего
+      var prevReactionsCell = sheet.getRange(currentRow, 9);
+      var previousReactionsCount = parseInt(prevReactionsCell.getValue()) || 0;
 
-  if (validReactionsCount < previousReactionsCount) {
-  Logger.log("⚠️ Защита сработала: API вернул меньше реакций (" + validReactionsCount + ") для строки " + currentRow + ", чем было в таблице (" + previousReactionsCount + "). Пропускаем обновление, чтобы не затереть данные.");
-  } else {
-  // Записываем данные штатно
-  sheet.getRange(currentRow, 8).setValue(totalViews);
-  sheet.getRange(currentRow, 9).setValue(validReactionsCount);
-  sheet.getRange(currentRow, 10).setValue(formattedDate);
-  sheet.getRange(currentRow, 11).setValue(reactionsListString);
-  
-  // Лог переносим сюда, чтобы он писал "Записано" только при реальном обновлении!
-  Logger.log("✅ Строка " + currentRow + " (" + channelUrl + "): " + validReactionsCount + " реакций | Записано.");
-}
-      
-// Ищем первое полноценное видео, которое уже вышло (дата <= сейчас)
-    var lastSongName = "";
-    var now = new Date().getTime(); // Текущий момент времени
+      if (validReactionsCount < previousReactionsCount) {
+        Logger.log("⚠️ Защита сработала: API вернул меньше реакций (" + validReactionsCount + ") для строки " + currentRow + ", чем было в таблице (" + previousReactionsCount + "). Пропускаем обновление, чтобы не затереть данные.");
+      } else {
+        // Записываем данные штатно
+        sheet.getRange(currentRow, 8).setValue(totalViews);
+        sheet.getRange(currentRow, 9).setValue(validReactionsCount);
+        sheet.getRange(currentRow, 10).setValue(formattedDate);
+        sheet.getRange(currentRow, 11).setValue(reactionsListString);
+      }
 
-    if (candidateVideos && candidateVideos.length > 0) {
-      // Сортируем от самых свежих к старым
-      candidateVideos.sort(function(a, b) {
-        return new Date(b.pubDate) - new Date(a.pubDate);
-      });
+// === ОПРЕДЕЛЕНИЕ ТРЕКА ПО САМОМУ СВЕЖЕМУ ВЫШЕДШЕМУ ВИДЕО ===
+      var lastSongName = "";
+      var now = new Date().getTime();
+      var validLatestVideos = [];
 
-      for (var k = 0; k < candidateVideos.length; k++) {
-        var video = candidateVideos[k];
-        var pubTime = new Date(video.pubDate).getTime();
+      if (candidateVideos && candidateVideos.length > 0) {
+        for (var k = 0; k < candidateVideos.length; k++) {
+          var v = candidateVideos[k];
+          var pubTime = new Date(v.pubDate).getTime();
+          var details = videoDetailsMap[v.id];
 
-        // 🛑 ПРОПУСКАЕМ БУДУЩИЕ ПРЕМЬЕРЫ (если дата видео позже текущего времени)
-        if (pubTime > now) {
-          continue; 
+          if (pubTime > now) continue; 
+          if (!details || details.duration < MIN_DURATION_SECONDS) continue; 
+
+          validLatestVideos.push(v);
         }
 
-        var detected = detectSongName(video.title);
-        if (detected) {
-          lastSongName = detected;
-          break; // Нашли самый свежий вышедший трек — останавливаемся
+        validLatestVideos.sort(function(a, b) {
+          return new Date(b.pubDate) - new Date(a.pubDate);
+        });
+        // 👇 ВРЕМЕННАЯ СТРОКА ДЛЯ ПРОВЕРКИ ПОРЯДКА И ВРЕМЕНИ ВЫХОДА 👇
+        //validLatestVideos.slice(0, 3).forEach(function(vid, idx) {
+          //Logger.log("№" + (idx + 1) + " | Время: " + Utilities.formatDate(new Date(vid.pubDate), Session.getScriptTimeZone(), "dd.MM.yyyy HH:mm:ss") + " | " + vid.title);
+        //});
+
+        if (validLatestVideos.length > 0) {
+          lastSongName = detectSongName(validLatestVideos[0].title);
         }
       }
-    }
 
-    // 🛡️ ЗАЩИТА РУЧНЫХ ЗАПИСЕЙ:
-    // Если скрипт ничего не нашел автоматически, но в ячейке уже что-то вписано вручную — оставляем это значение!
-    var cellRange = sheet.getRange(currentRow, 24); // Столбец X (24-й)
-    var currentManualValue = cellRange.getValue();
+     // === ЗАПИСЬ В СТОЛБЕЦ X (24) С УЧЕТОМ ВЫХОДА НОВОЙ РЕАКЦИИ ===
+      var cellRange = sheet.getRange(currentRow, 24);
+      var currentManualValue = String(cellRange.getValue() || "").trim();
 
-if (lastSongName) {
-  cellRange.setValue(lastSongName); // Записываем название трека в таблицу
-} else if (!currentManualValue) {
-  cellRange.setValue(""); // Если пусто и авто не нашло - оставляем пусто
-}
-    // Если lastSongName пустой, а в currentManualValue что-то есть — скрипт просто ПРОХОДИТ МИМО и не трогает вашу ручную запись!
-    
+      // Проверяем, увеличилось ли количество реакций (учитывает даже 2+ видео в один день)
+      var isNewReaction = (validReactionsCount > previousReactionsCount);
+
+      if (isNewReaction || currentManualValue === "") {
+        // Если вышло новое видео ИЛИ ячейка пуста — ставим новый трек (или "Cover")
+        cellRange.setValue(lastSongName ? lastSongName : "Cover");
+      }
+      // Если новых видео нет и в ячейке уже есть запись — не трогаем!
+
       props.setProperty('LAST_PROCESSED_ROW', (currentRow + 1).toString());
-      Logger.log("✅ Строка " + currentRow + " (" + channelUrl + "): " + validReactionsCount + " реакций | Записано.");
+      Logger.log("✅ Строка " + currentRow + " (" + channelUrl + "): обработана.");
     }
 
     props.setProperty('LAST_PROCESSED_ROW', '2');
@@ -420,14 +408,13 @@ function getChannelDetails(channelId) {
       var item = response.items[0];
       var country = item.snippet.country || '';
       
-      // Запрашиваем стандартный URL и жестко преобразуем размер в качественный s800
       var rawAvatar = item.snippet.thumbnails && item.snippet.thumbnails.default ? item.snippet.thumbnails.default.url : '';
       var avatarS800 = rawAvatar.replace(/=s\d+-[c-z0-9-]+/, '=s800-c-k-c0x00ffffff-no-rj');
 
       return {
         subscriberCount: parseInt(item.statistics.subscriberCount || 0, 10),
         avatarUrl: avatarS800,
-        countryCode: country.toUpperCase() // Двухбуквенный код страны (US, MX, ZA)
+        countryCode: country.toUpperCase()
       };
     }
   } catch (e) {
