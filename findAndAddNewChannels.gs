@@ -3,7 +3,7 @@ function findAndAddNewChannels() {
   var sheet = spreadsheet.getSheetByName("Channel") || spreadsheet.getActiveSheet();
   var lastRow = sheet.getLastRow();
 
-  // 1. Собираем список уже имеющихся каналов/хэндлов (нормализуем нижний регистр)
+  // 1. Собираем список уже имеющихся каналов/хэндлов (с нормализацией диакритики и кодировки)
   var existingHandles = new Set();
   if (lastRow >= 2) {
     var existingLinks = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
@@ -11,7 +11,7 @@ function findAndAddNewChannels() {
       var link = String(existingLinks[i][0] || '').trim();
       var handle = extractHandleForSearch(link);
       if (handle) {
-        existingHandles.add(handle.toLowerCase());
+        existingHandles.add(normalizeHandle(handle));
       }
     }
   }
@@ -104,8 +104,10 @@ function findAndAddNewChannels() {
               ? (customUrl.startsWith('@') ? customUrl : '@' + customUrl)
               : '@' + channelId;
 
-            // Если канала ещё нет в таблице — добавляем
-            if (!existingHandles.has(formattedHandle.toLowerCase())) {
+            var normalizedNewHandle = normalizeHandle(formattedHandle);
+
+            // Если канала ещё нет в таблице (с учетом нормализации) — добавляем
+            if (!existingHandles.has(normalizedNewHandle)) {
               var channelTitle = channelItem.snippet.title;
               var channelLink = "https://www.youtube.com/" + formattedHandle;
 
@@ -115,7 +117,7 @@ function findAndAddNewChannels() {
                 "", "", "", "", "", "", "", "", "", "no" // Столбец L (Show) теперь "no"
               ]);
 
-            	existingHandles.add(formattedHandle.toLowerCase());
+              existingHandles.add(normalizedNewHandle);
               newChannelsFound++;
               Logger.log("➕ Добавлен новый канал: " + channelTitle + " (" + formattedHandle + ")");
             }
@@ -134,6 +136,20 @@ function findAndAddNewChannels() {
 }
 
 // === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
+
+// Приводит хэндл к единому виду: декодирует %XX, убирает ударения/диакритику (í -> i) и переводит в нижний регистр
+function normalizeHandle(str) {
+  if (!str) return "";
+  var decoded = str;
+  try {
+    decoded = decodeURIComponent(str);
+  } catch (e) {}
+  return decoded
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
 
 function parseISO8601DurationSearch(duration) {
   if (!duration) return 0;
